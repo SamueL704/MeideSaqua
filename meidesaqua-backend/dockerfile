@@ -1,0 +1,40 @@
+# ---- ESTÁGIO 1: Build (Compilação) ----
+# Usamos uma imagem completa do Node.js para instalar as dependências e compilar o TypeScript
+FROM node:18-alpine AS builder
+
+# Define o diretório de trabalho
+WORKDIR /usr/src/app
+
+# Copia os arquivos de manifesto de dependências primeiro para aproveitar o cache do Docker
+COPY package*.json ./
+
+# Instala TODAS as dependências (incluindo as de desenvolvimento, como o 'typescript')
+RUN npm install
+
+# Copia o restante do código-fonte do projeto
+COPY . .
+
+# Executa o script de build definido no seu package.json (tsc)
+# Isso irá compilar o código TypeScript para JavaScript na pasta 'dist'
+RUN npm run build
+
+# ---- ESTÁGIO 2: Produção ----
+# Começamos com uma imagem limpa e segura do Node.js
+FROM node:18-alpine
+
+WORKDIR /usr/src/app
+
+# Copia apenas os arquivos de dependência necessários para produção
+COPY package*.json ./
+
+# Instala APENAS as dependências de produção, resultando em uma imagem muito menor
+RUN npm install --only=production
+
+# Copia o código JÁ COMPILADO (a pasta 'dist') do estágio anterior
+COPY --from=builder /usr/src/app/dist ./dist
+
+# Expõe a porta em que a sua API vai rodar (vamos usar 3001)
+EXPOSE 3001
+
+# Comando final para iniciar a aplicação em modo de produção
+CMD [ "node", "dist/server.js" ]
